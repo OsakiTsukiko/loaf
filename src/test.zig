@@ -1,7 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
 
+const CPU = @import("./cpu/cpu.zig").CPU;
 const Registers = @import("./cpu/registers.zig").Registers;
+const Interpretor = @import("./cpu/interpretor.zig").Interpretor;
 
 test Registers {
     const r1 = Registers{.r8 = .{ .l = .{
