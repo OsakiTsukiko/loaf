@@ -1,4 +1,8 @@
+const std = @import("std");
+
 pub const Interpretor = struct {
+    
+
     pub const Instruction = enum(u8) {
         //0-40
         NOP = 0x00,
