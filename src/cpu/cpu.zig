@@ -24,6 +24,21 @@ pub const CPU = struct {
     },
     bus: MemoryBus = MemoryBus{},
     
+    
+    
+    pub fn nextOPCode(self: *CPU) u8 {
+        const res = self.bus.read_byte(self.registers.r16.pc);
+        self.registers.r16.pc = @addWithOverflow(self.registers.r16.pc, 1)[1]; // TOOD: USE INCREMENT?
+        return res;
+    }
+
+    pub fn waitCycles(self: *CPU, cycles: u8) void {
+        _ = self;
+        _ = cycles;
+    }
+
+
+
     pub const MemoryBus = struct {
         memory: [0xFFFF]u8 = std.mem.zeroes([0xFFFF]u8),
 

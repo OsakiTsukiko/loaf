@@ -1,8 +1,9 @@
 const std = @import("std");
 const CPU = @import("./cpu.zig").CPU;
+const Execution = @import("./execution.zig").Execution;
 
 pub const Interpretor = struct {
-    pub fn executeOPCode(_: *CPU, opcode: u8) void {
+    pub fn executeOPCode(cpu: *CPU, opcode: u8) void {
         const instr: Instruction = @as(Instruction, @enumFromInt(opcode));
         switch (instr) {
             .NOP => {},
@@ -41,10 +42,10 @@ pub const Interpretor = struct {
             .JR_e8 => {},
             .JR_Z_e8 => {},
             .JR_C_e8 => {},
-            .ADD_HL_BC => {},
-            .ADD_HL_DE => {},
-            .ADD_HL_HL => {},
-            .ADD_HL_SP => {},
+            .ADD_HL_BC => Execution.add_r16_r16(cpu, cpu.registers.r16.hl, cpu.registers.r16.bc),
+            .ADD_HL_DE => Execution.add_r16_r16(cpu, cpu.registers.r16.hl, cpu.registers.r16.de),
+            .ADD_HL_HL => Execution.add_r16_r16(cpu, cpu.registers.r16.hl, cpu.registers.r16.hl),
+            .ADD_HL_SP => Execution.add_r16_r16(cpu, cpu.registers.r16.hl, cpu.registers.r16.sp),
             .LD_A_adr_BC => {},
             .LD_A_adr_DE => {},
             .LD_A_adr_HLI => {},
@@ -133,14 +134,14 @@ pub const Interpretor = struct {
             .LD_A_adr_HL => {},
             .LD_A_A => {},
             .HALT => {},
-            .ADD_A_B => {},
-            .ADD_A_C => {},
-            .ADD_A_D => {},
-            .ADD_A_E => {},
-            .ADD_A_H => {},
-            .ADD_A_L => {},
-            .ADD_A_adr_HL => {},
-            .ADD_A_A => {},
+            .ADD_A_B => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.b),
+            .ADD_A_C => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.c),
+            .ADD_A_D => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.d),
+            .ADD_A_E => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.e),
+            .ADD_A_H => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.h),
+            .ADD_A_L => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.l),
+            .ADD_A_adr_HL => Execution.add_r8_v8(cpu, &cpu.registers.r8.l.a, cpu.bus.read_byte(cpu.registers.r16.hl)),
+            .ADD_A_A => Execution.add_r8_r8(cpu, &cpu.registers.r8.l.a, &cpu.registers.r8.l.a),
             .ADC_A_B => {},
             .ADC_A_C => {},
             .ADC_A_D => {},
@@ -217,7 +218,7 @@ pub const Interpretor = struct {
             .PUSH_DE => {},
             .PUSH_HL => {},
             .PUSH_AF => {},
-            .ADD_A_n8 => {},
+            .ADD_A_n8 => Execution.add_r8_n8(cpu, &cpu.registers.r8.l.a),
             .SUB_A_n8 => {},
             .AND_A_n8 => {},
             .OR_A_n8 => {},
