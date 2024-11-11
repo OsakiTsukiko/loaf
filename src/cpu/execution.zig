@@ -826,4 +826,170 @@ pub const Execution = struct {
             cpu.waitCycles(12);
         }
     }
+
+    // PREFIX
+
+    pub fn rlc_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_msb_set = (r8_value & 0x80) != 0;
+
+        const op_result = std.math.rotl(u8, r8_value, 1);
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_msb_set;
+        cpu.registers.r8.l.flags.zero = op_result == 0;
+    }
+
+    pub fn rrc_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_lsb_set = (r8_value & 0x01) != 0;
+
+        const op_result = std.math.rotr(u8, r8_value, 1);
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_lsb_set;
+        cpu.registers.r8.l.flags.zero = op_result == 0;
+    }
+
+    pub fn rl_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_msb_set = (r8_value & 0x80) != 0;
+
+        const op_result = r8_value << 1 | cpu.registers.r8.l.flags.carry;
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_msb_set;
+        cpu.registers.r8.l.flags.zero = op_result == 0;
+    }
+
+    pub fn rr_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_lsb_set = (r8_value & 0x01) != 0;
+
+        const op_result = r8_value >> 1 | @as(u8, cpu.registers.r8.l.flags.carry) << 7;
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_lsb_set;
+        cpu.registers.r8.l.flags.zero = op_result == 0;
+    }
+
+    pub fn sla_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_msb_set = (r8_value & 0x80) != 0;
+        const r8_rest_unset = (r8_value & 0x7F) == 0;
+
+        const op_result = r8_value << 1;
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_msb_set;
+        cpu.registers.r8.l.flags.zero = r8_rest_unset; // TODO: op_result == 0?
+    }
+
+    pub fn sra_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_msb = r8_value & 0x80;
+        const r8_lsb_set = (r8_value & 0x01) != 0;
+
+        const op_result = r8_value >> 1 | r8_msb;
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_lsb_set;
+        cpu.registers.r8.l.flags.zero = op_result == 0;
+    }
+
+    pub fn swap_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+
+        const op_result = (r8_value << 4) | (r8_value >> 4);
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = 0;
+        cpu.registers.r8.l.flags.zero = r8_value == 0;// TODO: op_result?
+    }
+
+    pub fn srl_r8(cpu: *CPU, dest: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+        const r8_lsb_set = (r8_value & 0x01) != 0;
+
+        const op_result = r8_value >> 1;
+
+        dest.* = op_result;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 0;
+        cpu.registers.r8.l.flags.carry = r8_lsb_set;
+        cpu.registers.r8.l.flags.zero = op_result == 0;
+    }
+
+    pub fn bit_b3_r8(cpu: *CPU, dest: *u8, bit_index: u3, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+
+        const bit = @as(u8, 1) << bit_index;
+        const op_result = r8_value & bit;
+
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.half_carry = 1;
+        cpu.registers.r8.l.flags.zero = op_result == 0; // OP_RESULT == 0 or just OP_RESULT
+    }
+
+    pub fn res_b3_r8(cpu: *CPU, dest: *u8, bit_index: u3, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+
+        const bit = @as(u8, 1) << bit_index;
+        const op_result = r8_value & ~bit;
+
+        dest.* = op_result;
+    }
+
+    pub fn set_b3_r8(cpu: *CPU, dest: *u8, bit_index: u3, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const r8_value = dest.*;
+
+        const bit = @as(u8, 1) << bit_index;
+        const op_result = r8_value | bit;
+
+        dest.* = op_result;
+    }
 };

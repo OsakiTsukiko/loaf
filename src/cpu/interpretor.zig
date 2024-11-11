@@ -250,7 +250,7 @@ pub const Interpretor = struct {
             .JP_C_a16 => Execution.jp_c_n16(cpu, 0),
             .LD_adr_a16_A => Execution.ld_adr_r8(cpu, cpu.next2OPCode(), &cpu.registers.r8.l.a, 16),
             .LD_A_adr_a16 => Execution.ld_r8_v8(cpu, &cpu.registers.r8.l.a, cpu.bus.read_byte(cpu.next2OPCode()), 16),
-            .PREFIX => {},
+            .PREFIX => executePrefixOPCode(cpu, cpu.nextOPCode()),
             .EI => { cpu.waitCycles(4); cpu.enable_interrupts_master = true; },
             .CALL_Z_a16 => Execution.call_z(cpu, 0),
             .CALL_C_a16 => Execution.call_c(cpu, 0),
@@ -264,6 +264,113 @@ pub const Interpretor = struct {
             .RST_5 => Execution.call_v16(cpu, 0x28, 16),
             .RST_7 => Execution.call_v16(cpu, 0x38, 16),
         }
+    }
+
+    pub fn executePrefixOPCode(cpu: *CPU, opcode: u8) void {
+        const masked_b1_a = opcode & 0b1111_1000;
+        const masked_b1_b = opcode & 0b1100_0000;
+
+        if (masked_b1_a == 0b0000_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.rlc_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.rlc_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0000_1000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.rrc_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.rrc_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0001_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.rl_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.rl_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0001_1000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.rr_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.rr_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0010_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.sla_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.sla_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0010_1000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.sra_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.sra_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0011_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.swap_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.swap_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_a == 0b0011_1000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.srl_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 16); 
+            } else { Execution.srl_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), 8); }
+        } else if (masked_b1_b == 0b0100_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.bit_b3_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), read_bits_from_byte(u3, opcode, 3), 12);
+            } else {
+                Execution.bit_b3_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), read_bits_from_byte(u3, opcode, 3), 8);
+            }
+        } else if (masked_b1_b == 0b1000_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.res_b3_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), read_bits_from_byte(u3, opcode, 3), 16);
+            } else {
+                Execution.res_b3_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), read_bits_from_byte(u3, opcode, 3), 8);
+            }
+        } else if (masked_b1_b == 0b1100_0000) {
+            if (decode_r8_enum(read_bits_from_byte(u3, opcode, 0)) == r8e.HL) {
+                Execution.set_b3_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), read_bits_from_byte(u3, opcode, 3), 16);
+            } else {
+                Execution.set_b3_r8(cpu, decode_r8(read_bits_from_byte(u3, opcode, 0)), read_bits_from_byte(u3, opcode, 3), 8);
+            }
+        }
+    }
+
+    fn decode_r8(cpu: *CPU, r8: u3) *u8 {
+        return switch (r8) {
+            0 => &cpu.registers.r8.l.b,
+            1 => &cpu.registers.r8.l.c,
+            2 => &cpu.registers.r8.l.d,
+            3 => &cpu.registers.r8.l.e,
+            4 => &cpu.registers.r8.l.h,
+            5 => &cpu.registers.r8.l.l,
+            6 => cpu.bus.pointer(cpu.registers.r16.hl),
+            7 => &cpu.registers.r8.l.a,
+        };
+    }
+
+    const r8e = enum {
+        B,
+        C,
+        D,
+        E,
+        H,
+        L,
+        HL,
+        A
+    };
+
+    fn decode_r8_enum(r8: u3) r8e {
+        return switch (r8) {
+            0 => r8e.B,
+            1 => r8e.C,
+            2 => r8e.D,
+            3 => r8e.E,
+            4 => r8e.H,
+            5 => r8e.L,
+            6 => r8e.HL,
+            7 => r8e.A,
+        };
+    }
+
+    // Read sub-u8 type from u8 value and bit offset
+    fn read_bits_from_byte(comptime T: type, op_byte: u8, bit_offset: usize) T {
+        const src_type_bit_size = @bitSizeOf(@TypeOf(op_byte));
+        const dst_type_bit_size = @bitSizeOf(T);
+        assert(bit_offset + dst_type_bit_size <= src_type_bit_size);
+
+        return @truncate(op_byte >> @intCast(bit_offset));
+    }
+
+    pub fn assert(ok: bool) void {
+        if (!ok) unreachable; // assertion failure
     }
 
     pub const Instruction = enum(u8) {

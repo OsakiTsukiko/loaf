@@ -71,5 +71,9 @@ pub const CPU = struct {
             self.write_byte(address, @truncate(value));
             self.write_byte(address + 1, @truncate(value >> 8));
         }
+
+        pub fn pointer(self: *MemoryBus, address: u16) *u8 {
+            return &self.memory[@as(usize, @intCast(address))];
+        }
     };
 };
