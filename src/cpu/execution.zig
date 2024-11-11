@@ -1,6 +1,8 @@
 const std = @import("std");
 const CPU = @import("./cpu.zig").CPU;
 
+const LDH_OFFSET: u16 = 0xff00;
+
 pub const Execution = struct {
     // ADD
 
@@ -489,5 +491,339 @@ pub const Execution = struct {
 
         cpu.registers.r8.l.flags.half_carry = 0;
         cpu.registers.r8.l.flags.zero = cpu.registers.r8.l.a == 0;
+    }
+
+    pub fn ld_r8_r8(cpu: *CPU, dest: *u8, source: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        dest.* = source.*;
+    }
+
+    pub fn ld_r8_v8(cpu: *CPU, dest: *u8, value: u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        dest.* = value;
+    }
+
+    pub fn ld_adr_r8(cpu: *CPU, address: u16, source: *u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        cpu.bus.write_byte(address, source.*);
+    }
+
+    pub fn ld_adr_v8(cpu: *CPU, address: u16, value: u8, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        cpu.bus.write_byte(address, value);
+    }
+
+    pub fn ld_r16_v16(cpu: *CPU, dest: *u16, value: u16, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        dest.* = value;
+    }
+
+    pub fn ld_adr_SP(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const adr = cpu.next2OPCode();
+
+        const p = @as(u8, @truncate(cpu.registers.r16.sp));
+        const s = @as(u8, @truncate(cpu.registers.r16.sp >> 8));
+
+        cpu.bus.write_byte(adr, p);
+        cpu.bus.write_byte(adr +% 1, s);
+    }
+
+    pub fn ldh_adr_n8_a(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        
+        const address = cpu.nextOPCode();
+
+        cpu.bus.write_byte(LDH_OFFSET + address, cpu.registers.r8.l.a);
+    }
+
+    pub fn ldh_a_adr_n8(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        
+        const address = cpu.nextOPCode();
+
+        cpu.registers.r8.l.a = cpu.bus.read_byte(LDH_OFFSET + address);
+    }
+
+    pub fn ld_c_a(cpu: *CPU, cycles: u8) void {
+        // ld? ldh?
+        cpu.waitCycles(cycles);
+        cpu.bus.write_byte(LDH_OFFSET + cpu.registers.r8.l.c, cpu.registers.r8.l.a);
+    }
+
+    pub fn ld_a_c(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        // ld? ldh?
+        cpu.registers.r8.l.a = cpu.bus.read_byte(LDH_OFFSET + cpu.registers.r8.l.c);
+    }
+
+    pub fn ld_hl_sp_n8(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        
+        const offset_u8 = cpu.nextOPCode();
+        const offset_i8 = @as(i8, @bitCast(offset_u8));
+        
+        // NOTE: very tricky carry behavior
+        _, cpu.registers.r8.l.flags.carry = @addWithOverflow(@as(u8, @truncate(cpu.registers.r16.sp)), offset_u8);
+        _, cpu.registers.r8.l.flags.half_carry = @addWithOverflow(@as(u4, @truncate(cpu.registers.r16.sp)), @as(u4, @intCast(offset_i8 & 0xf)));
+        cpu.registers.r8.l.flags.substract = false;
+        cpu.registers.r8.l.flags.zero = false;
+
+        // NOTE: using two's-complement to ignore signedness
+        cpu.registers.r16.hl = cpu.registers.r16.sp +% @as(u16, @bitCast(@as(i16, offset_i8)));
+    }
+
+    pub fn jr_n8(cpu: *CPU, _: u8) void {
+        const offset_u8 = cpu.nextOPCode();
+        const offset_i8 = @as(i8, @bitCast(offset_u8));
+
+        cpu.waitCycles(12);
+        cpu.registers.r16.pc +%= @as(u16, @bitCast(@as(i16, offset_i8)));
+    }
+
+    pub fn jr_nz_n8(cpu: *CPU, _: u8) void {
+        const offset_u8 = cpu.nextOPCode();
+        const offset_i8 = @as(i8, @bitCast(offset_u8));
+
+        if (!cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(12);
+            cpu.registers.r16.pc +%= @as(u16, @bitCast(@as(i16, offset_i8)));
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn jr_z_n8(cpu: *CPU, _: u8) void {
+        const offset_u8 = cpu.nextOPCode();
+        const offset_i8 = @as(i8, @bitCast(offset_u8));
+
+        if (cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(12);
+            cpu.registers.r16.pc +%= @as(u16, @bitCast(@as(i16, offset_i8)));
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn jr_nc_n8(cpu: *CPU, _: u8) void {
+        const offset_u8 = cpu.nextOPCode();
+        const offset_i8 = @as(i8, @bitCast(offset_u8));
+
+        if (cpu.registers.r8.l.flags.carry == 0) {
+            cpu.waitCycles(12);
+            cpu.registers.r16.pc +%= @as(u16, @bitCast(@as(i16, offset_i8)));
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn jr_c_n8(cpu: *CPU, _: u8) void {
+        const offset_u8 = cpu.nextOPCode();
+        const offset_i8 = @as(i8, @bitCast(offset_u8));
+
+        if (cpu.registers.r8.l.flags.carry == 1) {
+            cpu.waitCycles(12);
+            cpu.registers.r16.pc +%= @as(u16, @bitCast(@as(i16, offset_i8)));
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn jp_n16(cpu: *CPU, _: u8) void {
+        cpu.waitCycles(16);
+        cpu.registers.r16.pc = cpu.next2OPCode();
+    }
+
+    pub fn jp_nz_n16(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (!cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(16);
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn jp_z_n16(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(16);
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn jp_nc_n16(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (!cpu.registers.r8.l.flags.carry == 0) {
+            cpu.waitCycles(16);
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn jp_c_n16(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (cpu.registers.r8.l.flags.carry == 1) {
+            cpu.waitCycles(16);
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn jp_hl(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        cpu.registers.r16.pc = cpu.registers.r16.hl;
+    }
+
+    pub fn pop_r16(cpu: *CPU, dest: *u16, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        dest.* = cpu.bus.read_word(cpu.registers.r16.sp);
+        cpu.registers.r16.sp +%= 2;
+    }
+
+    pub fn push_r16(cpu: *CPU, source: *u16, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        cpu.registers.r16.sp -%= 2;
+        cpu.bus.write_word(cpu.registers.r16.sp, source.*);
+    }
+
+    pub fn ret(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        cpu.registers.r16.pc = cpu.bus.read_byte(cpu.registers.r16.sp);
+        cpu.registers.r16.sp +%= 2;
+    }
+
+    pub fn ret_nz(cpu: *CPU, _: u8) void {
+        if (!cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(20);
+            cpu.registers.r16.pc = cpu.bus.read_byte(cpu.registers.r16.sp);
+            cpu.registers.r16.sp +%= 2;
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn ret_z(cpu: *CPU, _: u8) void {
+        if (cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(20);
+            cpu.registers.r16.pc = cpu.bus.read_byte(cpu.registers.r16.sp);
+            cpu.registers.r16.sp +%= 2;
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn ret_nc(cpu: *CPU, _: u8) void {
+        if (cpu.registers.r8.l.flags.carry == 0) {
+            cpu.waitCycles(20);
+            cpu.registers.r16.pc = cpu.bus.read_byte(cpu.registers.r16.sp);
+            cpu.registers.r16.sp +%= 2;
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn ret_c(cpu: *CPU, _: u8) void {
+        if (cpu.registers.r8.l.flags.carry == 1) {
+            cpu.waitCycles(20);
+            cpu.registers.r16.pc = cpu.bus.read_byte(cpu.registers.r16.sp);
+            cpu.registers.r16.sp +%= 2;
+        } else {
+            cpu.waitCycles(8);
+        }
+    }
+
+    pub fn reti(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+        ret(cpu, 0);
+        cpu.enable_interrupts_master = true;
+    }
+
+    pub fn call(cpu: *CPU, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        const address = cpu.next2OPCode();
+
+        cpu.registers.r16.sp -%= 2;
+        cpu.bus.write_word(cpu.registers.r16.sp, cpu.registers.r16.pc);
+
+        cpu.registers.r16.pc = address;
+    }
+
+    pub fn call_v16(cpu: *CPU, address: u16, cycles: u8) void {
+        cpu.waitCycles(cycles);
+
+        cpu.registers.r16.sp -%= 2;
+        cpu.bus.write_word(cpu.registers.r16.sp, cpu.registers.r16.pc);
+
+        cpu.registers.r16.pc = address;
+    }
+
+    pub fn call_nz(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (!cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(24);
+            cpu.registers.r16.sp -%= 2;
+            cpu.bus.write_word(cpu.registers.r16.sp, cpu.registers.r16.pc);
+
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn call_z(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (cpu.registers.r8.l.flags.zero) {
+            cpu.waitCycles(24);
+            cpu.registers.r16.sp -%= 2;
+            cpu.bus.write_word(cpu.registers.r16.sp, cpu.registers.r16.pc);
+
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn call_nc(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (cpu.registers.r8.l.flags.carry == 0) {
+            cpu.waitCycles(24);
+            cpu.registers.r16.sp -%= 2;
+            cpu.bus.write_word(cpu.registers.r16.sp, cpu.registers.r16.pc);
+
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
+    }
+
+    pub fn call_c(cpu: *CPU, _: u8) void {
+        const address = cpu.next2OPCode();
+
+        if (cpu.registers.r8.l.flags.carry == 1) {
+            cpu.waitCycles(24);
+            cpu.registers.r16.sp -%= 2;
+            cpu.bus.write_word(cpu.registers.r16.sp, cpu.registers.r16.pc);
+
+            cpu.registers.r16.pc = address;
+        } else {
+            cpu.waitCycles(12);
+        }
     }
 };
